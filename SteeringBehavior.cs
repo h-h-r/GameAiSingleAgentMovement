@@ -28,6 +28,7 @@ public class SteeringBehavior : MonoBehaviour
     public float timeToTarget;
 
     // For Face function
+
     public float maxRotation;
     public float maxAngularAcceleration;
     public float targetRadiusA;
