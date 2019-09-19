@@ -87,10 +87,8 @@ public class NPCController : MonoBehaviour {
                 if (ai.tag == "Hunter")
                 {
                     label.text = "4: dynamic wonder";
-                    //linear = ai.Seek();
-                    //angular = ai.Face();
-                    angular = ai.Wander(out linear);
-                    //linear = ai.Seek();
+                    angular = ai.Wander();
+                    linear = ai.maxSpeed * new Vector3(Mathf.Sin(ai.GetComponent<NPCController>().orientation), 0, Mathf.Cos(ai.GetComponent<NPCController>().orientation));
                 }
                 else
                 {
@@ -122,12 +120,14 @@ public class NPCController : MonoBehaviour {
                 {
                     label.text = "6: dynamic arrive";
                     linear = ai.Arrive();
+                    angular = ai.Face();
                  
                 }
                 if (ai.tag == "Wolf")
                 {
                     label.text = "6:dynamic flee";
                     linear = ai.Flee();
+                    angular = ai.FaceAway();
 
                 }
                 break;
@@ -149,13 +149,16 @@ public class NPCController : MonoBehaviour {
                     {
                         linear = linear1;
                     }
+
+                    angular = ai.Face();
                     
 
                 }
                 if (ai.tag == "Wolf")
                 {
                     label.text = "7: dynamic wonder";
-                    angular = ai.Wander(out linear);
+                    angular = ai.Wander();
+                    linear = linear = ai.maxSpeed * new Vector3(Mathf.Sin(ai.GetComponent<NPCController>().orientation), 0, Mathf.Cos(ai.GetComponent<NPCController>().orientation));
                     //linear = ai.Flee();
                     //linear = ai.Evade();
 
@@ -187,7 +190,7 @@ public class NPCController : MonoBehaviour {
                  
                 if (ai.tag == "Hunter")
                 {
-                    label.text = "9: dynamic align";
+                    label.text = "9: dynamic align + pursue";
                     linear = ai.Pursue();
                     angular = ai.Align();
 
@@ -195,7 +198,8 @@ public class NPCController : MonoBehaviour {
                 if (ai.tag == "Wolf")
                 {
                     label.text = "9: dynamic wonder";
-                    angular = ai.Wander(out linear);
+                    angular = ai.Wander();
+                    linear = ai.maxSpeed * new Vector3(Mathf.Sin(ai.GetComponent<NPCController>().orientation), 0, Mathf.Cos(ai.GetComponent<NPCController>().orientation));
 
                 }
                 break;

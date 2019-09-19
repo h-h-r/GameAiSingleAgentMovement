@@ -187,36 +187,31 @@ public class SteeringBehavior : MonoBehaviour
 
 
 
-    // Calculate the target to face
-    public float Wander(out Vector3 linear)
+    // wander returns the angular_acc(account for face direction) 
+    public float Wander()
+//    public float Wander(out Vector3 linear)
     {
-        // Update the wander orientation
+        // adjust the initial wanderOrientation with a small random angle
         wanderOrientation += (Random.value - Random.value) * wanderRate;
 
         // Calculate the combined target orientation
         float orientation = wanderOrientation + agent.orientation;
 
-        // Calculate the center of the wander circle
+
+        // the wander circle center position
         Vector3 position = agent.position + wanderOffset * new Vector3(Mathf.Sin(agent.orientation), 0, Mathf.Cos(agent.orientation));
         agent.DrawCircle(position, wanderRadius);
 
-        // Calculate the target location
+        // Calculate the wander target 
         position += wanderRadius * new Vector3(Mathf.Sin(orientation), 0, Mathf.Cos(orientation));
 
-        // Work out the direction to target
+        // direction to wander target
         Vector3 direction = position - agent.position;
-
-        // Check for a zero direction, and make no change if so ??
-        if (direction.magnitude == 0)
-        {
-            linear = Vector3.zero;
-            return 0;
-        }
 
         // Get the naive direction to the target
         float rotation = Mathf.Atan2(direction.x, direction.z) - agent.orientation;
 
-        // Map the result to the (0, 2pi) interval
+        //clip to [-pi,pi]
         while (rotation > Mathf.PI)
         {
             rotation -= 2 * Mathf.PI;
@@ -227,47 +222,42 @@ public class SteeringBehavior : MonoBehaviour
         }
         float rotationSize = Mathf.Abs(rotation);
 
-        // Check if we are there, return no steering
+        // within targetRadius -> set roration speed to 0
         if (rotationSize < targetRadiusA)
         {
             agent.rotation = 0;
         }
 
-        // If we are outside the slowRadius, then use max rotation
-        // Otherwise calculate a scaled rotation
-        float targetRotation = (rotationSize > slowRadiusA ? maxRotation : maxRotation * rotationSize / slowRadiusA);
+        //calculate desire rotation speed
+        float rotationSpeed = (rotationSize > slowRadiusA ? maxRotation : maxRotation * rotationSize / slowRadiusA);
 
-        // The final target rotation combines speed (already in the variable) and direction
-        targetRotation *= rotation / rotationSize;
+        // apply direction
+        rotationSpeed *= rotation / rotationSize;
 
         // Acceleration tries to get to the target rotation
-        float angular = targetRotation - agent.rotation;
-        angular /= timeToTarget;
+        float angular_acc = rotationSpeed - agent.rotation;
+        angular_acc /= timeToTarget;//angular acc
 
-        // Check if the acceleration is too great
-        float angularAcceleration = Mathf.Abs(angular);
-        if (angularAcceleration > maxAngularAcceleration)
+        // clip angular_acc
+        if (Mathf.Abs(angular_acc) > maxAngularAcceleration)
         {
-            angular /= angularAcceleration;
-            angular *= maxAngularAcceleration;
+            angular_acc /= Mathf.Abs(angular_acc);
+            angular_acc *= maxAngularAcceleration;
         }
 
-        // Now set the linear acceleration to be at full acceleration in the direction of the orientation
-        linear = maxAcceleration * new Vector3(Mathf.Sin(agent.orientation), 0, Mathf.Cos(agent.orientation));
+        return angular_acc;
 
-        return angular;
     }
+
 
 
     public Vector3 Arrive()
     {
-        // Get the direction to the target
         Vector3 direction = target.position - agent.position;
-        float distance = direction.magnitude;
 
-        if (distance <= slowRadiusL)
+        if (direction.magnitude <= slowRadiusL)
         {
-            agent.label.text = "in!!";
+            agent.label.text = "dynamic arrive\n<In slowRadiusL>";
             //agent.DestroyPoints();
             agent.DrawCircle(target.position, slowRadiusL);
         }
@@ -276,92 +266,86 @@ public class SteeringBehavior : MonoBehaviour
             agent.DestroyPoints();
         }
 
-        // Check if we are there, return no steering
-        if (distance < targetRadiusL)
+        // stop if arrive (in target radius) and return zero linear_acc
+        if (direction.magnitude < targetRadiusL)
         {
+            agent.label.text = "dynamic arrive\n<In targetRadiusL>";
             agent.velocity = Vector3.zero;
             return Vector3.zero;
         }
 
-        // If we are outside the slowRadius, then go max speed
-        // Otherwise calculate a scaled speed
-        float targetSpeed = (distance > slowRadiusL ? maxSpeed : maxSpeed * distance / slowRadiusL);
-
-
-
-
-        // The target velocity combines speed and direction
+        //calculate appropriate speed
+        float speed = (direction.magnitude > slowRadiusL? maxSpeed : maxSpeed* direction.magnitude / slowRadiusL);
+        
+        //apply direction
         direction.Normalize();
-        direction *= targetSpeed;
+        Vector3 velocity = direction * speed;
 
-        // Acceleration tries to get to the target velocity
-        Vector3 steering = (direction - agent.velocity) / timeToTarget;
+        // calculate linear_acc
+        Vector3 linear_acc = (velocity - agent.velocity) / timeToTarget;
 
-        // Check if the acceleration is too fast
-        if (steering.magnitude > maxAcceleration)
+        // clip linear_acc
+        if (linear_acc.magnitude > maxAcceleration)
         {
-            steering.Normalize();
-            steering *= maxAcceleration;
+            linear_acc.Normalize();
+            linear_acc *= maxAcceleration;
         }
 
-        return steering;
+        return linear_acc;
     }
 
 
-    // Calculate the target to pursue
     public Vector3 Pursue() {
-        // Work out the distance to target
         float distance = (target.position - agent.position).magnitude;
 
-        // Work out our current speed
+        // speed scalar
         float speed = agent.velocity.magnitude;
 
-        // Check if speed is too small to give a reasonable prediction time
-        float prediction = (speed <= distance / maxPrediction ? maxPrediction : distance / speed);
+        // if speed small-> use bigger predictionTime
+        float predictTime = (speed <= distance / maxPrediction ? maxPrediction : distance / speed);
 
-        agent.DrawCircle(target.position + target.velocity * prediction, 0.3f);
-        // Create the structure to hold our output
-        Vector3 steering = (target.position + target.velocity * prediction) - agent.position;
+        //draw prediction circle
+        agent.DrawCircle(target.position + target.velocity * predictTime, 0.3f);
 
-        // Give full acceleration along this direction
-        steering.Normalize();
-        steering *= maxAcceleration;
+        //direction to prediction point
+        Vector3 linear_acc = (target.position + target.velocity * predictTime) - agent.position;
 
-        return steering;
+        //clip to map linear acc
+        linear_acc.Normalize();
+        linear_acc *= maxAcceleration;
+
+        return linear_acc;
     }
 
-    // Calculate the target to evade
     public Vector3 Evade() {
-        // Work out the distance to target
         float distance = (target.position - agent.position).magnitude;
 
-        // Work out our current speed
+        // speed scalar
         float speed = agent.velocity.magnitude;
 
-        // Check if speed is too small to give a reasonable prediction time
+        // if speed small-> use bigger predictionTime
         float prediction = (speed <= distance / maxPrediction ? maxPrediction : distance / speed);
 
+        //draw prediction circle
         agent.DrawCircle(target.position + target.velocity * prediction, 0.5f);
-        // Create the structure to hold our output
-        Vector3 steering = agent.position - (target.position + target.velocity * prediction);
 
-        // Give full acceleration along this direction
-        steering.Normalize();
-        steering *= maxAcceleration;
+        //direction to evade prediction point
+        Vector3 linear_acc = agent.position - (target.position + target.velocity * prediction);
 
-        return steering;
+        //clip to map linear acc
+        linear_acc.Normalize();
+        linear_acc *= maxAcceleration;
+
+        return linear_acc;
     }
 
  
-
-   
-    // Calculate the target to face
     public float Align()
     {
 
         float rotation = target.orientation - agent.orientation;
-   
-        // Map the result to the (0, 2pi) interval
+
+        // clip to (-pi, pi) interval
         while (rotation > Mathf.PI)
         {
             rotation -= 2 * Mathf.PI;
@@ -372,32 +356,30 @@ public class SteeringBehavior : MonoBehaviour
         }
         float rotationSize = Mathf.Abs(rotation);
 
-        // Check if we are there, return no steering
+        //within targetRadiusA
         if (rotationSize < targetRadiusA)
         {
             agent.rotation = 0;
         }
 
-        // If we are outside the slowRadius, then use max rotation
-        // Otherwise calculate a scaled rotation
-        float targetRotation = (rotationSize > slowRadiusA ? maxRotation : maxRotation * rotationSize / slowRadiusA);
+        //calculate desire rotation speed
+        float rotationSpeed = (rotationSize > slowRadiusA ? maxRotation : maxRotation * rotationSize / slowRadiusA);
 
-        // The final target rotation combines speed (already in the variable) and direction
-        targetRotation *= rotation / rotationSize;
+        // apply direction
+        rotationSpeed *= rotation / rotationSize;
 
         // Acceleration tries to get to the target rotation
-        float angular = targetRotation - agent.rotation;
-        angular /= timeToTarget;//speed
+        float angular_acc = rotationSpeed - agent.rotation;
+        angular_acc /= timeToTarget;//angular acc
 
-        // Check if the acceleration is too great
-        float angularAcceleration = Mathf.Abs(angular);
-        if (angularAcceleration > maxAngularAcceleration)
+        // clip angular_acc
+        if (Mathf.Abs(angular_acc) > maxAngularAcceleration)
         {
-            angular /= angularAcceleration;
-            angular *= maxAngularAcceleration;
+            angular_acc /= Mathf.Abs(angular_acc);
+            angular_acc *= maxAngularAcceleration;
         }
 
-        return angular;
+        return angular_acc;
     }
 
 
